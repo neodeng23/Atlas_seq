@@ -1,0 +1,118 @@
+# test_csv = BasicCSV.load("/Users/wts-sw/Library/Atlas/Resources/test.csv", 
+# {
+#   "Unjag": False,
+#   "RemoveEmptyLines": True,
+#   "RemoveTrailingLines": True,
+#   "RowFilter": filterFunc
+# })
+
+finish_with_error(e) {
+	Atlas.Log.error("caught exception", e.className)
+
+	if ( e.class == "UserException" ) {
+		Atlas.Log.error("Custom Exception Behaviour")
+	}
+}
+
+run_csv_test_plan(csvLocation)
+{
+	path_to_limits = Atlas.path_for_resource("limits/testLimits.csv")
+  	Globals.limits = Atlas.load_limits_file(path_to_limits)
+
+	csv_path = Atlas.path_for_resource(csvLocation)
+	Atlas.Log.info("Using CSV file: " + csv_path)
+	csv = BasicCSV.load(csv_path)
+	header = ["enabled","TestGroup","TestProcess","Step","PortDevice","RetryTimes", "GetValue", "Cmd", "SendEndSympol", "TimeOut", "CheckValue", "Sleep", "unit"]
+
+	if csv[0] <> header
+	{
+		raise exception("Expected CSV header " + stringify(header) + " got " + stringify(csv[0]))
+	}
+
+	enabled_counter = 0;
+	for index in range(1, size(csv))
+	{
+		line = csv[index]
+
+		if size(line) <> size(header)
+		{
+			raise exception("Expected line in CSV to have " + stringify(size(header))
+							+ " items but it had " + stringify(size(line))
+							+ " (line " + stringify(index) + ")")
+		}
+
+		if (line[0] <> Nil && line[0] <> "")
+		{
+			################################
+			enabled = numerify(line[0])
+			Globals.Test_Group = line[1]
+			Globals.Test_Process = line[2]
+			Step = line[3]
+			Globals.PortDevice = line[4]			
+			Globals.RetryTimes = line[5]
+			Globals.GetValue = line[6]
+			Globals.Cmd = line[7]
+			Globals.SendEndSympol = line[8]
+			Globals.TimeOut = line[9]
+			Globals.CheckValue = line[10]
+			Sleep = line[11]
+			Globals.unit = line[12]
+			################################
+
+			#Globals.limits = limits_from_csv[stringify(Globals.Test_Group)] onError -> limits = {}
+
+			#test_name_array = tokenize(test_name, " ")
+
+			if (enabled == 1)
+			{
+				enabled_counter = enabled_counter + 1
+
+				#执行串口通信
+				###############################################################
+				if(Step == "UartCom")
+					{
+						Atlas.execute_test("UartCom", UartCom) onError e ->  Atlas.Log.info(stringify(e))
+					}
+
+				#执行led测试
+				###############################################################				
+				elsif (Step == "FeasaCom")
+					{
+						Atlas.execute_test("FeasaCom", FeasaCom) onError e ->  Atlas.Log.info(stringify(e))
+					}
+
+				#执行仪表
+				###############################################################
+				elsif (Step == "VisaCom")
+					{
+						Atlas.execute_test("VisaCom", VisaCom) onError e ->  Atlas.Log.info(stringify(e))					
+					}
+
+
+				#进行python数据处理并结果判断
+				###############################################################
+				elsif (Step == "Judge")
+					{
+						Atlas.execute_test(Globals.Test_Group, Judge) onError e ->  Atlas.Log.info(stringify(e))
+					}
+				else
+					{
+						raise exception("Invalid Step!!!!!!!!")
+					}
+
+				#睡眠
+				###############################################################
+				if(Sleep != "" and Sleep != :NIL:)
+					{
+						System.sleep(numerify(Sleep))  onError e ->  Atlas.Log.info(stringify(e))
+					}
+
+			} # end of if(enabled)
+		} # end of csv line read
+	} # end of for loop
+	if (enabled_counter == 0)
+	{
+		Atlas.call_app_sync("show-form", { "type" : "message", "message" : "No tests selected to run"})
+		raise exception("No tests selected to run ")
+	}					
+}

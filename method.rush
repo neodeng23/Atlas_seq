@@ -1,0 +1,275 @@
+#找到所需仪表的地址
+#######################################################
+Instrument_loc(device)
+# ('USB0::0x1AB1::0x04B1::DS4A204300541::INSTR',)
+# RIGOL TECHNOLOGIES,DS4014E,DS4A204300541,00.02.03.SP2
+  {
+    config = Globals.Visa_config
+    Atlas.Log.info("command res ====================:" + 
+    "  code:" + stringify(config["code"]) + 
+    "  error:" + stringify(config["error"]) +
+    "  out:" + stringify(config["out"]))
+  
+    result = config["code"]
+    if(result == 0)
+      {
+        out = config["out"]
+      }
+    else
+      {
+        out = res["error"]
+        raise exception("Pyexecute fail" + stringify(out))
+      }
+    res = Regex.matches(out, device + ".*\\|", 0)
+    loc = Regex.replace(res, device + "#" ,"", 0)
+    loc = Regex.replace(res, "\\|" ,"", 0)
+    return loc
+  }
+
+#向仪表发送指令
+#######################################################
+sendCommandtoVisa(Command, inst)
+  {
+    config = Globals.Visa_config
+    Atlas.Log.info("command res ====================:" + 
+    "  code:" + stringify(config["code"]) + 
+    "  error:" + stringify(config["error"]) +
+    "  out:" + stringify(config["out"]))
+  
+    result = config["code"]
+    if(result == 0)
+      {
+        out = stringify(config["out"])
+      }
+    else
+      {
+        out = stringify(config["error"])
+        raise exception("Pyexecute fail" + stringify(out))
+      }
+
+    res = Regex.matches(out, inst + ".*?\\|", 0)
+    res = res[0]
+    Atlas.Log.info(stringify(res))
+
+    loc = Regex.replace(res, inst + "\\#" ,"", 0)
+    loc = Regex.replace(loc, "\\|" ,"", 0)
+    Atlas.Log.info(stringify(Command) + stringify(loc))
+
+    result = System.command( 
+                        "./Users/wts-sw/Library/Atlas/Resources/py/Visa_com",
+                        loc,
+                        Command
+                      )
+    Atlas.Log.info("command res ====================:" + 
+    "  code:" + stringify(result["code"]) + 
+    "  error:" + stringify(result["error"]) +
+    "  out:" + stringify(result["out"]))
+    res = stringify(result["out"])
+    return res
+  }
+
+
+
+Verify_Result_resistor(test_name, group_name, case_name, command, limit)
+{
+  Command1 = stringify(Globals.Commandlist[command])
+  #ReturnValue = sendCommandtoUnit(Command1)
+  #ReturnValue = "10000\r\n"
+  VerifyValue = Regex.replace(ReturnValue, "\\r\\n" ,"", 0)
+  if(size(Regex.matches(VerifyValue, "-", 0)) > 0)
+  {
+    VerifyValue = Regex.replace(VerifyValue, "-" ,"", 0)
+  }
+  if(VerifyValue == "OVER")
+  {
+    Atlas.create_record([group_name, case_name, "OVER"], 99999999, "Ohm", limit[test_name])
+  }
+  else
+  {
+    VerifyValue1 = numerify(VerifyValue)
+    Atlas.create_record([test_name, group_name, case_name], VerifyValue1, "Ohm", limit[test_name])
+  }
+}
+
+Verify_Result_voltage(test_name, group_name, case_name, command, limit)
+{
+  Command1 = stringify(Globals.Commandlist[command])
+  #ReturnValue = sendCommandtoUnit(Command1)
+  ReturnValue = "1.8\r\n"
+  VerifyValue1 = Regex.replace(ReturnValue, "\\r\\n" ,"", 0)
+  VerifyValue2 = Regex.matches(VerifyValue1, "\\d\\.\\d\?\\d\?\\d\?", 0)
+  VerifyValue = numerify(VerifyValue2[0])
+  Atlas.create_record([test_name, group_name, case_name], VerifyValue, "V", limit)
+}
+
+# python回复格式
+# {"code":0, "error":"", "out":"10000
+# 2020-10-15 10:33:11.831 atlas.AppContainer.Group(DUT).Unit(1)[2496]: <Error> "},
+Pyexecute(pyname, arg)
+{
+  res = System.command(
+                        "/Library/Frameworks/Python.framework/Versions/2.7/bin/python", 
+                        "/Users/wts-sw/Library/Atlas/Resources/py/"+pyname,
+                        arg
+                      )
+  Atlas.Log.info("command res ====================:" + 
+    "  code:" + stringify(res["code"]) + 
+    "  error:" + stringify(res["error"]) +
+    "  out:" + stringify(res["out"]))
+  
+  result = res["code"]
+  if(result == 0)
+    {
+      out = res["out"]
+      return out
+    }
+  else
+    {
+      out = res["error"]
+      raise exception("Pyexecute fail" + stringify(out))
+    }
+}
+
+Pyexecute2(pyname, arg, arg2)
+{
+  res = System.command(
+                        "/Library/Frameworks/Python.framework/Versions/2.7/bin/python", 
+                        "/Users/wts-sw/Library/Atlas/Resources/py/"+pyname,
+                        arg,
+                        arg2
+                      )
+  Atlas.Log.info("command res ====================:" + 
+    "  code:" + stringify(res["code"]) + 
+    "  error:" + stringify(res["error"]) +
+    "  out:" + stringify(res["out"]))
+  
+  result = res["code"]
+  if(result == 0)
+    {
+      out = res["out"]
+      return out
+    }
+  else
+    {
+      out = res["error"]
+      raise exception("Pyexecute fail" + stringify(out))
+    }
+}
+
+#usb串口通信，发送指令
+#######################################################
+send_Command(unitid, cmd, timeout, endsymbol)
+{
+  Atlas.Log.info("./Users/wts-sw/Library/Atlas/Resources/py/serial_port",
+                        unitid,
+                        cmd,
+                        timeout,
+                        endsymbol
+                      )
+  res = System.command( 
+                        "./Users/wts-sw/Library/Atlas/Resources/py/serial_port",
+                        unitid,
+                        cmd,
+                        timeout,
+                        endsymbol
+                      )
+
+  Atlas.Log.info("command res ====================:" + 
+    "  code:" + stringify(res["code"]) + 
+    "  error:" + stringify(res["error"]) +
+    "  out:" + stringify(res["out"]))
+
+  result = res["code"]
+  if(result == 0)
+    {
+      out = stringify(res["out"])
+      ret = Regex.replace(out, "\\r" ,"", 0)
+      ret = Regex.replace(ret, "\\n" ,"", 0)
+      return ret
+    }
+  else
+    {
+      out = res["error"]
+      raise exception("send_Command fail" + stringify(out))
+    }
+}
+
+#适用于收到的回复带前缀和冒号的，后面是ok加参数，如ft:ok 00000000000000000
+#####################################################################
+Read_res(case_name, cmd, timeout, endsymbol)
+{
+  res = System.command( 
+                        "./Users/wts-sw/Library/Atlas/Resources/py/serial_port",
+                        Globals.UnitID,
+                        cmd,
+                        timeout,
+                        endsymbol
+                      )
+
+  serial = res["out"]res1 = Regex.replace(serial, "\\r\\n" ,"", 0)
+  
+  machres = Regex.groups(res, "^(ok ).*",0)
+  Atlas.Log.info(stringify(machres))
+  if(size(machres) == 0)
+    {
+      res = "NA"
+      Atlas.Log.info("Execute test fail!")
+      Atlas.create_record([case_name, cmd, serial], :FALSE: )
+    }
+  else
+    {
+      res = Regex.matches(res1, "ok \w.+", 0)
+      ReturnValue = Regex.replace(res, "(ok )","" ,0)
+    }
+  
+  return  ReturnValue;
+}
+
+#Unit只回ok的情景
+#####################################################################
+Unit_execute(case_name, cmd, timeout, endsymbol)
+{
+  res = System.command( 
+                        "./Users/wts-sw/Library/Atlas/Resources/py/serial_port",
+                        Globals.UnitID,
+                        cmd,
+                        timeout,
+                        endsymbol
+                      )
+
+  serial = res["out"]
+  res = Regex.replace(serial, "\\r\\n" ,"", 0)
+  if(res == "ok")
+    {
+      Atlas.create_record([case_name, cmd, "ok"], :TRUE: )
+    }
+  else
+    {
+      Atlas.create_record([case_name, cmd, cmd + " execute fail"], :FALSE: )
+    }
+
+}
+
+#Fixture只回ok的情景
+#####################################################################
+Fixture_execute(case_name, cmd)
+{
+  res = System.command( 
+                        "./Users/wts-sw/Library/Atlas/Resources/py/serial_port",
+                        "Fixture",
+                        cmd,
+                        "2000",
+                        "0D0A"
+                      )
+  serial = res["out"]
+  res = Regex.replace(ReturnValue, "\\r\\n" ,"", 0)
+  if(res == "ok")
+    {
+      Atlas.create_record([case_name, cmd, "ok"], :TRUE: )
+    }
+  else
+    {
+      Atlas.create_record([case_name, cmd, cmd + " execute fail"], :FALSE: )
+    }
+
+}

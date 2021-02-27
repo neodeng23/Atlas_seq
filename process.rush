@@ -1,0 +1,341 @@
+addDeviceAttribute(name, value)
+{
+  Atlas.create_record([“dummy”], True)
+  Atlas.add_device_attribute(name, value);
+}
+
+hasDuplicateValueInDictionary(dict)
+{
+  duplicates = {}
+  for i in dict  {
+    duplicates[stringify(dict[i])] = 1
+  }
+
+  return size(duplicates) != size(dict)
+}
+
+#校验sn号
+SNCheck(serial)
+{
+  
+  res = Regex.replace(serial, "[\\s]+","" ,0)
+  return  res;
+}
+
+
+unit_id()
+{
+  Atlas.add_device_attribute("UnitID", Globals.UnitID);
+  Atlas.create_record(["UnitID","",Globals.UnitID], :TRUE: )
+}
+
+addFixtureIDAndTestHeadID (fixture_id, test_head_id) 
+{
+  Atlas.create_record(["adding fixture id and test head id", fixture_id, test_head_id], True)
+  Atlas.add_fixture_id_and_test_head_id(fixture_id,test_head_id)
+}
+
+# getUOP(){
+#   shopfloorURL = Globals.stationInfo["SFC_IP"]
+#   Tsid = Globals.stationInfo["STATION_ID"]
+#   URL = "http://"+shopfloorURL+"/BobcatService.svc/request?sn="+Globals.SerialNumber+"&p=unit_process_check&c=QUERY_RECORD&tsid="+Tsid
+#   res = Atlas.call_plugin("UARTPlugin", "getUOPdata", URL)
+#   if(res == "OK")
+#     {
+#      Atlas.create_record(["getUOPdata", res], :TRUE: )
+#     }
+#   else
+#     {
+#      Atlas.create_record(["getUOPdata", res], :FALSE: )
+#     }
+# }
+
+
+executePluginTest (pluginName, command, parameters, limits, atlasParams)
+{
+    #executeDescription = atlasParams["description"]
+    executeDescription = "default"
+    if (has_key(atlasParams, "description"))
+    {
+        executeDescription = atlasParams["description"]
+    }
+    else
+  {
+    executeDescription = command
+  }
+
+    if (has_key(atlasParams, "names"))
+    {
+        prependNames = atlasParams["names"]
+        return Atlas.execute_test(executeDescription, prependNames, Atlas.call_plugin, pluginName, command, parameters, limits, atlasParams)
+    }
+    else
+    {
+        return Atlas.execute_test(executeDescription, Atlas.call_plugin, pluginName, command, parameters, limits, atlasParams)
+    }
+}
+
+createBlobData()
+{
+    # Create folder that should be uploaded as blob
+    blob_path = cformat("%s/BlobData", Atlas.Unit.working_dir)
+    System.mkdir(blob_path)
+    Atlas.create_record(["BlobData", "CreateFolder"], True)
+
+    # Create a JSON file that should be uploaded as part of the blob
+    test_dict = { "key1" : "val1", "key2" : "val2" }
+    json_data_path = cformat("%s/measurement.json", blob_path)
+    JSON.save(json_data_path, test_dict)
+
+    return blob_path
+}
+
+getOverlayVersion(version)
+{
+  strRet = "null"
+  
+  arrResult = Regex.groups(version, " ([a-zA-Z0-9._-]+)", 0)
+  if size(arrResult) > 0{
+    strRet = arrResult[0]
+  }
+  return strRet
+}
+
+DRCB_start(serialNumber, suffix)
+{
+  # Atlas.create_record(["ProcessControl","start"], True)
+  # return True #Debug
+  Atlas.Log.info("配置PDCA =================")
+
+  sw_ver = Globals.OverlayVersion
+
+  
+  if(Globals.isDebugOverlayVersion){
+    sw_ver = sw_ver + '_TEST_TEST'
+    }else{
+    if(Atlas.Unit.test_mode_name != "Production") {
+      sw_ver = sw_ver + '_' + Atlas.Unit.test_mode_name
+    }
+    }
+
+  Atlas.Log.info("配置PDCA =================",serialNumber,sw_ver)
+
+  return Atlas.call_plugin("DRCB", "startDataReporting", {
+    "serialnumber"    : serialNumber,
+    "softwareversion" : sw_ver,
+    "limitsversion"   : "1.18.0",
+    "softwarename"    : "Atlas"
+  })
+}
+
+recordSerialNumber(sn)
+{
+  Atlas.create_record(['Start Test Process', 'SerialNumber', sn], True)
+}
+
+DRCB_amIOK(serialNumber)
+{
+  # return True #Debug
+  return Atlas.call_plugin("DRCB", "amIOK", {
+    "serialnumber"    : serialNumber,
+  })
+}
+
+
+#Finishes process control plugin call
+DRCB_finish()
+{
+  # return True #Debug
+  # DUT_close()
+  Atlas.call_plugin("DRCB", "finish")
+
+# ewu 3/26/2019: why was there a DUT_open() here...?
+# DUT_open()
+}
+
+initDUTComm2(site)
+{
+  
+  pListPath = Atlas.path_for_resource("DeviceSting.plist")
+  contents = PList.load(pListPath)
+  # contents = PList.load("/vault/DeviceSting.plist")
+
+  Atlas.Log.info("PLIST:==========", contents.UART[0])
+  Atlas.Log.info("SITE:==========="+stringify(site))
+
+  port = contents.UART[numerify(site)]
+
+  Globals.Result = openUart(port ,site)
+  Atlas.Log.info("Open reuslt========"+stringify(Globals.Result))
+
+}  
+
+setSerialLogger(site){
+  
+ parameters = {
+        "UnitID"    : site
+        "uartpath"  : "/Users/gdlocal/REPORT/UART_BLOB/"
+        "sn" : Globals.SerialNumber
+    }
+  res = Atlas.call_plugin("UARTPlugin", "getUartPath", parameters)
+  if(res.result == "PASS"){
+        Globals.serialog = res.value
+  }
+  Atlas.Log.info("===========UART Log Path===========",res.value)
+}
+
+openUart(port,site){
+
+  parameters = {
+        "path"    : port
+    }
+  res = Atlas.call_plugin("UARTPlugin", "OpenUart", parameters)
+  Atlas.Log.info("===========Open Uart===========",res.result)
+
+ if(res.result != "PASS"){
+    Atlas.call_app("show-form", { "type" : "message", "message" : "Unit" + site + " UART port open fail,\r\nplease check again.\r\n" + port})
+    raise exception("UART port open fail")
+  }
+
+  System.sleep(0.5)
+  return res.result
+}
+
+closeUart(site){
+
+  res = Atlas.call_plugin(unit,"UARTPlugin", "CloseUart")
+  Atlas.Log.info("==========close Uart==========",res.result)
+  System.sleep(0.1)
+}
+
+
+recordResult(title, content, types)
+{
+
+  
+    Atlas.execute_test(title, setLimitsResult, title, content) onError e -> Atlas.Log.info(stringify(e))
+  
+}
+
+setLimitsResult(title, items)
+{
+  if !isNil(items) and size(items) > 0 {
+    for k, v in items{
+      
+      Atlas.Log.info("key =" + stringify(k))
+      Atlas.Log.info("value =" + stringify(v))
+
+      value = -9999
+      value = numerify(v) onError e -> value = -9999
+      limitName = stringify(k)
+      customLimit = Atlas.create_limit("limits", :NIL:, :NIL:, :NIL:, :NIL:, "NA")
+      if (has_key(Globals.StationLimits, Globals.StationName) and has_key(Globals.StationLimits[Globals.StationName], limitName)) {
+        customLimit = Globals.StationLimits[Globals.StationName][limitName]
+      }
+      Atlas.create_record([stringify(title), stringify(k)], value, customLimit['units'], customLimit) onError e -> Atlas.Log.info(stringify(e))
+    }
+  }else{
+    Atlas.create_record(["Test_result"], :FALSE:, "nil result") onError e -> Atlas.Log.info(stringify(e))
+  }
+  # Add attribute
+  #addCustomAttribute({item_name: content["Version"]})
+}
+
+#校验SN
+######################################################################
+serialNumberRequest(userInfo)
+{
+  units = Atlas.Unit.user_info["units"]
+  layout = [];
+
+  for i in range(units) {
+    label = {
+      "type": "label",
+      "text" : units[i]
+    }
+    type = {
+      "type" : "field",
+      "id" : units[i]
+    }
+    layout = layout + [label] + [type]
+  }
+  Atlas.Log.info("layout: " + stringify(layout))
+
+  serial_number_request = {
+    "type" : "custom",
+    "layout" : layout
+  }
+
+  serials = Atlas.call_app_sync("show-form", serial_number_request)
+  Atlas.Log.info("scan return " + stringify(serials))
+
+  # validate input
+  if (hasDuplicateValueInDictionary(serials))
+  {
+     raise exception("has duplicate serial number")
+  }
+
+  serialNumber1 = stringify(serials[Atlas.Unit.unit_identifier])
+  Globals.SerialNumber = SNCheck(serialNumber1)onError -> serial_number = "NA"
+  # Atlas.add_device_attribute("serialnumber", Globals.SerialNumber);
+
+  if(Globals.SerialNumber == "NA")
+  {
+    Atlas.add_device_attribute("serial_number",Globals.SerialNumber )
+    Atlas.create_record(["Scan SN","Check SN",Globals.SerialNumber], :FALSE: )
+  }
+
+  else
+  {
+    Atlas.add_device_attribute("serial_number",Globals.SerialNumber )
+    Atlas.create_record(["Scan SN","Check SN",Globals.SerialNumber], :TRUE: )
+  }
+}
+
+#获取loop次数
+######################################################################
+get_loopnum()
+{
+  label = {
+    "type": "label",
+    "text" : "loop_number"
+  }
+  type = {
+    "type" : "field",
+    "id" : "loop_number"
+  }
+  layout = [label] + [type]
+
+  loop_request_res = Atlas.call_app_sync("show-form", { "type" : "custom", "layout" : layout})
+  Globals.LoopNumber = loop_request_res["loop_number"]
+  Atlas.create_record(["get loop number","", stringify(Globals.LoopNumber)], :TRUE: )
+}
+
+Initialization()
+{
+  
+  Globals.isDebugOverlayVersion = :FALSE:
+  Globals.stationConfig = {}
+  Globals.stationConfig = JSON.load("/vault/data_collection/test_station_config/gh_station_info.json") onError e ->  Atlas.Log.info(stringify(e))
+
+  Globals.stationInfo = Globals.stationConfig["ghinfo"]
+  Atlas.Log.info("get the overlay verison: " + stringify(Globals.stationInfo["STATION_OVERLAY"]))
+  Atlas.Log.info("get the station number:" + stringify(Globals.stationInfo["STATION_NUMBER"]))
+
+  Globals.OverlayVersion = getOverlayVersion(stringify(Globals.stationInfo["STATION_OVERLAY"]))
+  
+  Globals.ProcessControl = True
+  Globals.EnableCB = False
+
+  Globals.STATION_NUMBER = Globals.stationInfo["STATION_NUMBER"]
+  Globals.UnitID = Atlas.Unit.user_info["UnitID"]
+  
+  Globals.StationName = 'FATP'
+  Globals.StationLimits = {}
+  Globals.StationLimits = Atlas.load_limits_file("limits/UI_Limits.csv")
+  Atlas.create_record(["Initialization_complete","",""], :TRUE: )
+
+  Globals.Visa_config = System.command( "./Users/wts-sw/Library/Atlas/Resources/py/Visa_ins")
+  Globals.serial_Config = JSON.load("/Users/wts-sw/Library/Atlas/Resources/test_config/serial_info.json")
+  
+}

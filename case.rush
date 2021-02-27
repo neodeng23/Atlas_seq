@@ -1,0 +1,190 @@
+#CSV用例
+######################################################################
+UartCom()
+{
+  Test_Group = Globals.Test_Group
+  Test_Process = Globals.Test_Process
+  PortDevice = Globals.PortDevice
+  Cmd = Globals.Cmd
+  TimeOut = stringify(Globals.TimeOut)
+  SendEndSympol = Globals.SendEndSympol
+  CheckValue = Globals.CheckValue
+  unit = Globals.unit
+  limit = Globals.limits
+
+  Atlas.Log.info(PortDevice + Cmd + TimeOut + SendEndSympol)
+
+  res = send_Command(PortDevice, Cmd, TimeOut, SendEndSympol)
+  
+  Globals.UartCom_res = res
+
+  if(CheckValue == "NoCheck")
+    {
+      Atlas.create_record([Test_Process, Cmd, res], :TRUE: )
+    }
+  elsif(CheckValue == "limits")
+    {
+      VerifyValue1 = Regex.matches(res, "\\d\\.\\d\?\\d\?\\d\?", 0)
+      if(size(VerifyValue1) > 0)
+        {
+          VerifyValue = numerify(VerifyValue1[0])
+        }
+      else
+        {
+          VerifyValue = numerify(res)    
+        }
+      Atlas.create_record([Test_Group, Test_Process, ""], VerifyValue, unit, limit[Test_Process])
+    }
+  elsif(CheckValue != "" and CheckValue != "NoCheck")
+    {
+      if(size(Regex.matches(res, CheckValue, 0)) > 0)
+        {
+          Atlas.create_record([Test_Process, Cmd, CheckValue], :TRUE: )
+        }
+      else
+        {
+          Atlas.create_record([Test_Process, Cmd,  res + "!=" + CheckValue], :FALSE: )
+        }
+    }
+}
+
+FeasaCom()
+{
+    res = System.command(
+                        "./Users/wts-sw/Library/Atlas/Resources/py/Led_getHSI"
+                        )
+    Globals.Feasa_res = res["out"]
+
+}
+
+VisaCom()
+{
+  Test_Group = Globals.Test_Group
+  Test_Process = Globals.Test_Process
+  Cmd = Globals.Cmd
+  SendEndSympol = Globals.SendEndSympol
+  CheckValue = Globals.CheckValue
+  inst = Globals.PortDevice
+
+  res = sendCommandtoVisa(Cmd, inst)
+  Globals.VisaCom_res = res
+  if (CheckValue != "")
+    {
+      if(CheckValue == "NoCheck")
+        {
+          Atlas.create_record([Test_Process, Cmd, ""], :TRUE: )
+        }
+      elsif(CheckValue != "NoCheck" and size(Regex.matches(res, CheckValue, 0)) > 0)
+        {
+          Atlas.create_record([Test_Process, Cmd, CheckValue], :TRUE: )
+        }
+      else
+        {
+          Atlas.create_record([Test_Process, Cmd, CheckValue], :FALSE: )
+        }
+    }
+}
+
+Script()
+{
+  pyname = Globals.Cmd
+  Atlas.Log.info("./Users/wts-sw/Library/Atlas/Resources/py/" + pyname)
+  res = System.command("./Users/wts-sw/Library/Atlas/Resources/py/" + pyname)
+  if (CheckValue == "NoCheck")
+    {
+      Atlas.create_record([Test_Process, Cmd, CheckValue], :TRUE: )
+    } 
+  elsif (CheckValue == "Gojudge")
+    {
+      Atlas.create_record([Test_Process, Cmd, CheckValue], :FALSE: )
+      Globals.Script_res = res
+    }
+  elsif (CheckValue != "" and CheckValue != "NoCheck" and CheckValue != "Gojudge")
+    {
+      if(size(Regex.matches(res, CheckValue, 0)) > 0)
+        {
+          Atlas.create_record([Test_Process, Cmd, CheckValue], :TRUE: )
+        }
+       else
+        {
+           Atlas.create_record([Test_Process, Cmd, CheckValue], :FALSE: )
+        }
+    } 
+}
+
+Judge()
+{
+  Test_Group = Globals.Test_Group
+  Test_Process = Globals.Test_Process
+  pyname = Globals.Cmd
+  SendEndSympol = Globals.SendEndSympol
+  CheckValue = Globals.CheckValue
+  unit = Globals.unit
+  limit = Globals.limits
+
+  if (Globals.GetValue == "Uart")
+    {
+      res = Globals.UartCom_res
+    }
+  elsif (Globals.GetValue == "Visa")
+    {
+      res = Globals.VisaCom_res
+    }
+  elsif (Globals.GetValue == "Script")
+    {
+      res = Globals.Script_res
+    } 
+    elsif (Globals.GetValue == "Feasa")
+    {
+      res = Globals.Feasa_res
+    }   
+
+  #res = Regex.replace(res, " " ,"", 0)
+
+  if (pyname == "re_Get_Value.py" or pyname == "re_Get_hsi.py")
+    {
+      Atlas.Log.info(pyname, res, SendEndSympol)
+      CutOut_res = Pyexecute2(pyname, res, SendEndSympol)
+    }
+  else
+    {
+      Atlas.Log.info(pyname, res)
+      CutOut_res = Pyexecute(pyname, res)
+    }
+
+  if (CheckValue == "NoCheck")
+    {
+      if(size(Regex.matches(CutOut_res, "no find", 0)) > 0)
+        {
+          Atlas.create_record([Test_Process, pyname,  "no find" + CheckValue], :FALSE: )
+        }
+      else
+        {
+          Atlas.create_record([Test_Process, "", CutOut_res], :TRUE: )
+        }
+    }
+  elsif(CheckValue == "limits")
+    {
+      VerifyValue1 = Regex.matches(CutOut_res, "\\d\\.\\d\?\\d\?\\d\?", 0)
+      if(size(VerifyValue1) > 0)
+        {
+          VerifyValue = numerify(VerifyValue1[0])
+        }
+      else
+        {
+          VerifyValue = numerify(res)    
+        }
+      Atlas.create_record([Test_Group, Test_Process, ""], VerifyValue, unit, limit[Test_Process])
+    }
+  elsif(CheckValue != "" and CheckValue != "NoCheck")
+    {
+      if(size(Regex.matches(CutOut_res, CheckValue, 0)) > 0)
+        {
+          Atlas.create_record([Test_Process, pyname, CheckValue], :TRUE: )
+        }
+      else
+        {
+          Atlas.create_record([Test_Process, pyname,  CutOut_res + "!=" + CheckValue], :FALSE: )
+        }
+    }
+}

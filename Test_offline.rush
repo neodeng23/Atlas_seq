@@ -1,0 +1,32 @@
+main()
+{
+	
+	Atlas.execute_test("serial number scan", serialNumberRequest, Atlas.Unit.user_info)
+	Atlas.execute_test("Test initialization", Initialization)
+	Atlas.execute_test("addFixtureIDAndTestHeadID", addFixtureIDAndTestHeadID, Globals.STATION_NUMBER, Globals.UnitID)
+	
+	#########################################################
+	if (Atlas.Unit.test_mode_name == "Loop_Offline_Test")
+	{
+		Atlas.execute_test("get loop num", get_loopnum)
+		test_num = numerify(Globals.LoopNumber)
+	}
+	else
+	{
+		test_num = 1
+	}
+	#########################################################
+	
+	for i in range(0, test_num)
+	{
+	
+
+
+		run_csv_test_plan("test.csv")
+
+	}	
+
+
+	
+    Atlas.Log.info("Finished Test")
+}

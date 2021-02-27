@@ -1,0 +1,106 @@
+# Atlas Logging:
+#	 =>	Atlas.Log.info(arguemnts...)
+#	 =>	Atlas.Log.debug(arguments...)
+#	 =>	Atlas.Log.error(arguments...)
+
+# Atlas Launch Station Plugin:
+#	 =>	Atlas.launch_plugin(bundle, plugin)
+#	 =>	Atlas.launch_plugin(bundle, plugin, name)
+#	 =>	Atlas.launch_plugin(bundle, plugin, name, setup_parameters)
+
+# Atlas Teardown Station Plugin:
+#	 =>	Atlas.teardown_plugin(name)
+#	 =>	Atlas.teardown_plugin(name, teardown_parameters)
+
+app_setup(app)
+{
+
+    stationTopology = {"groups" : [
+      {
+      "identifier" : "DUT",
+      "units" : [
+        {
+          "identifier" : "1",
+         # "unit_transports" : [{"url":"uart:///dev/cu.usbserial","metadata":{"metaUnit":"1"}}],
+          "userinfo" : {"UnitID": "1", "ResetUI": "True"} 
+
+          
+        }
+      ]
+    }
+  ]
+}
+
+  app.settings = {
+    "station-name" : "Test_Station V0.1.0",
+    "start-button" : stationTopology,
+    "station-topology" : stationTopology
+    "force-fullscreen" : :FALSE:
+    "test-modes": ["Production"],
+    "custom-test-modes" : 
+    [
+      {
+            "name" : "Loop_Test",
+            "base-test-mode" : "Production"
+        },{
+            "name" : "Offline_Test",
+            "base-test-mode" : "Reliability"
+        },{
+            "name" : "Loop_Offline_Test",
+            "base-test-mode" : "Reliability"
+      }
+    ]
+    "default-window-location-size" :{ "x" : 450, "y": 150, "width": 1200, "height": 700 }
+  }
+}
+
+station_setup()
+{
+  Atlas.Log.info("Setting up station")
+}
+
+station_teardown()
+{
+  Atlas.Log.info("Station teardown")
+}
+
+unit_setup(unit)
+{
+  Atlas.Log.info("Started.......................................")
+  Atlas.Log.info("Started", unit.unit_identifier)
+  Atlas.launch_plugin(unit,"AtlasPluginLibrary", "DRCB")
+  UART_num = numerify(unit.unit_identifier) - 1
+
+  if (unit.test_mode == Atlas.TestModes.Reliability) 
+  {
+      Atlas.set_sequence(unit, "Test_offline.rush", "case.rush", "method.rush", "process.rush", "Load_csv.rush")
+  }
+  elsif (unit.test_mode == Atlas.TestModes.Production) 
+  {
+      Atlas.set_sequence(unit, "Test.rush", "case.rush", "method.rush", "process.rush", "Load_csv.rush")     
+  }
+}
+
+unit_teardown(unit)
+{
+  Atlas.Log.info(unit, "unit teardown....")
+  Atlas.Log.info("Teardown the   Plugin  for" + "unit:"+unit.unit_identifier)
+}
+
+group_setup(group)
+{
+  Atlas.Log.info("Group Setup")
+
+  for unit in group.units {
+    unit_setup(unit)
+  }
+}
+
+group_teardown(group)
+{
+  Atlas.Log.info("Group teardown")
+
+  for unit in group.units {
+    unit_teardown(unit)
+  }
+}
